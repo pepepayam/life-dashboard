@@ -23,8 +23,8 @@ LD.app = (() => {
       h('div.gate-opts',
         h('button.opt', { onclick: () => githubSetup() }, h('b', '🔄 GitHub — همگام بین کامپیوترها و گوشی (پیشنهادی)'), h('span', 'فایل رمزگذاری‌شده در یک مخزن خصوصی GitHub نگه داشته می‌شود؛ روی کامپیوتر یک نسخه هم در پوشه OneDrive نوشته می‌شود.')),
         fsOk ? h('button.opt', { onclick: async () => { try { await LD.backends.folder.pick(); localStorage.setItem('ld.backend', 'folder'); unlock(true); } catch (e) { if (e.name !== 'AbortError') LD.toast(e.message, 'warn'); } } },
-          h('b', '📁 پوشه روی این کامپیوتر (پیشنهادی)'), h('span', 'پوشه C:\\Users\\…\\OneDrive\\LifeDashboard را انتخاب کنید؛ OneDrive خودش آن را بین سیستم‌ها همگام می‌کند و روی هارد هم هست.')) : null,
-        h('button.opt', { onclick: () => onedriveSetup() }, h('b', '☁️ OneDrive آنلاین (برای گوشی)'), h('span', 'ورود با حساب مایکروسافت و خواندن/نوشتن مستقیم فایل در OneDrive. نیاز به آدرس https دارد.')),
+          h('b', '📁 فقط پوشه روی این کامپیوتر'), h('span', 'بدون GitHub؛ پوشه OneDrive را انتخاب کنید تا بین کامپیوترها همگام شود (گوشی پشتیبانی نمی‌شود).')) : null,
+        h('button.opt', { onclick: () => onedriveSetup() }, h('b', '☁️ OneDrive آنلاین'), h('span', 'فقط اگر Client ID برنامه Azure دارید.')),
         h('button.opt', { onclick: () => { localStorage.setItem('ld.backend', 'local'); unlock(true); } }, h('b', '📱 فقط همین دستگاه'), h('span', 'داده در حافظه مرورگر می‌ماند؛ با «دانلود پشتیبان» می‌توانید آن را منتقل کنید.')),
         h('button.opt', { onclick: () => openFile() }, h('b', '📄 باز کردن فایل life-data.ldb'), h('span', 'یک فایل پشتیبان یا فایل داده را از گوشی/کامپیوتر باز کنید.'))),
       !fsOk ? h('p.muted.small', 'مرورگر شما انتخاب پوشه را پشتیبانی نمی‌کند (روی کامپیوتر از Chrome یا Edge استفاده کنید).') : null));
