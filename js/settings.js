@@ -161,6 +161,36 @@
     onSave: (v) => { LD.db.setSettings({ keywordMap: v.list.filter((x) => x.word).map(({ word, unitId, categoryId }) => ({ word, unitId, categoryId })) }); },
   });
 
+  /* حالت پوشه: اتصال و وضعیت پشتیبان ابری GitHub */
+  async function cloudCard() {
+    const c = LD.github.cfg();
+    if (!(await LD.cloud.ready())) {
+      const tok = h('input', { type: 'password', dir: 'ltr', placeholder: 'github_pat_…', autocomplete: 'off' });
+      const repo = h('input', { type: 'text', dir: 'ltr', value: c.owner ? c.owner + '/' + c.repo : 'life-data' });
+      const msg = h('p.err');
+      const btn = h('button.btn.primary', { onclick: async () => {
+        msg.textContent = ''; btn.disabled = true;
+        try { await LD.github.connect(tok.value, repo.value.trim() || 'life-data'); LD.github.setCfg({ auto: true }); await LD.cloud.run(true); LD.router.refresh(); }
+        catch (e) { msg.textContent = e.message; btn.disabled = false; }
+      } }, 'اتصال و پشتیبان‌گیری');
+      return ui.card('پشتیبان ابری (GitHub)', h('div.set-grid',
+        h('p.small', 'وقتی اینترنت وصل است، فایل داده به‌صورت خودکار در مخزن خصوصی GitHub هم ذخیره می‌شود و تغییرات گوشی با این کامپیوتر ادغام می‌شود. توکن فقط یک بار روی این کامپیوتر وارد می‌شود.'),
+        h('label.field', h('span.lbl', 'توکن (Fine-grained, فقط همین مخزن، Contents: Read and write)'), tok),
+        h('label.field', h('span.lbl', 'مخزن داده (خصوصی)'), repo),
+        msg, h('div.btn-row', btn)));
+    }
+    const s = await LD.cloud.status();
+    const autoIn = h('input', { type: 'checkbox', checked: LD.cloud.auto(), onchange: (e) => { LD.github.setCfg({ auto: e.target.checked }); if (e.target.checked) LD.cloud.schedule(); } });
+    return ui.card('پشتیبان ابری (GitHub)', h('div.set-grid',
+      h('p', 'مخزن: ', h('code', { dir: 'ltr' }, c.owner + '/' + c.repo)),
+      h('p.small', 'آخرین پشتیبان ابری: ', h('b', s.at ? J.fmt(s.at.slice(0, 10)) + ' ' + new Date(s.at).toLocaleTimeString('fa-IR') : 'هنوز انجام نشده')),
+      s.error ? h('p.err', 'آخرین تلاش ناموفق: ' + s.error) : null,
+      h('label.switch', autoIn, h('span', 'پشتیبان‌گیری خودکار وقتی اینترنت وصل است')),
+      h('div.btn-row',
+        h('button.btn.primary', { onclick: async () => { await LD.cloud.run(true); LD.router.refresh(); } }, ui.icon('sync', 16), ' پشتیبان‌گیری ابری اکنون'),
+        h('button.btn', { onclick: async () => { if (await ui.confirm('توکن GitHub از این کامپیوتر حذف شود؟ فایل محلی دست‌نخورده می‌ماند.', 'قطع اتصال')) { await LD.github.logout(); LD.router.refresh(); } } }, 'قطع اتصال GitHub'))));
+  }
+
   LD.pages.settings = {
     title: 'تنظیمات',
     async render(el) {
@@ -179,8 +209,10 @@
             LD.state.backend === 'github' ? h('button.btn', { onclick: async () => { if (await ui.confirm('توکن GitHub از این دستگاه حذف و برنامه قفل شود؟', 'قطع اتصال')) { await LD.save(true); await LD.github.logout(); localStorage.removeItem('ld.backend'); location.reload(); } } }, 'قطع اتصال GitHub') : null,
             h('button.btn', { onclick: async () => { await LD.syncNow(); LD.toast('همگام شد'); LD.router.refresh(); } }, ui.icon('sync', 16), ' همگام‌سازی اکنون'),
             h('button.btn', { onclick: () => LD.app.switchStorage() }, 'تغییر محل ذخیره'),
-            h('button.btn', { onclick: () => LD.app.lock() }, ui.icon('lock', 16), ' قفل کردن')))),
-        LD.state.backend !== 'github' ? ui.card('همگام‌سازی با GitHub (پیشنهادی برای گوشی)', h('div.set-grid',
+            h('button.btn', { onclick: () => LD.app.lock() }, ui.icon('lock', 16), ' قفل کردن'),
+            LD.app.installBtn()))),
+        LD.state.backend === 'folder' ? await cloudCard() : null,
+        LD.state.backend !== 'github' && LD.state.backend !== 'folder' ? ui.card('همگام‌سازی با GitHub (پیشنهادی برای گوشی)', h('div.set-grid',
           h('p.small', 'داده رمزگذاری‌شده در یک مخزن خصوصی GitHub نگه داشته می‌شود تا روی همه کامپیوترها و گوشی در دسترس باشد.'),
           h('div.btn-row', h('button.btn.primary', { onclick: async () => { await LD.save(true); localStorage.removeItem('ld.backend'); location.reload(); } }, 'انتقال به GitHub')),
           h('p.muted.small', 'بعد از کلیک، برنامه قفل می‌شود؛ گزینه GitHub را بزنید. داده فعلی (از کش این دستگاه) در مخزن نوشته می‌شود.'))) : null,
