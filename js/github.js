@@ -82,3 +82,70 @@ LD.backends.github = {
   },
   name: async () => { const c = LD.github.cfg(); return c.owner ? c.owner + '/' + c.repo : ''; },
 };
+
+/* حالت پوشه روی کامپیوتر: پشتیبان ابری در GitHub هر وقت اینترنت باشد (خودکار و دستی)
+   تغییرات گوشی/دستگاه دیگر که در GitHub نوشته شده، قبل از ارسال ادغام می‌شود */
+LD.cloud = (() => {
+  let busy = false, lastError = '';
+  const ready = async () => LD.github.cfg().connected && !!(await LD.idb.get('gh.token'));
+  const auto = () => LD.github.cfg().auto !== false;
+  const waitSave = async () => { while (LD.state.saving) await new Promise((r) => setTimeout(r, 200)); };
+
+  async function run(manual) {
+    const st = LD.state;
+    if (busy || !st.data || st.backend !== 'folder') return false;
+    if (!(await ready())) { if (manual) LD.toast('برای پشتیبان ابری، در تنظیمات به GitHub وصل شوید', 'warn'); return false; }
+    if (!navigator.onLine) { if (manual) LD.toast('اینترنت وصل نیست؛ پشتیبان ابری بعداً خودکار انجام می‌شود', 'warn'); return false; }
+    busy = true;
+    try {
+      await waitSave();
+      if (st.dirty) { await LD.save(true); await waitSave(); }
+      const remote = await LD.github.read(LD.DATA_FILE);
+      if (remote) {
+        const rev = LD.crypto.header(remote).rev;
+        if (rev !== st.baseRev && rev !== (await LD.idb.get('cloudRev'))) {
+          let r;
+          try { r = await LD.crypto.decrypt(remote, { session: st.session }); }
+          catch (e) {
+            if (e.code !== 'NEED_PASSWORD') throw e;
+            if (!manual) throw new Error('رمز فایل روی GitHub با رمز فعلی فرق دارد؛ «پشتیبان‌گیری ابری اکنون» را بزنید');
+            r = await LD.crypto.decrypt(remote, { password: await LD.ui.askPassword('رمز فایل روی GitHub با رمز فعلی فرق دارد. رمز آن را وارد کنید:') });
+          }
+          st.data = LD.merge(st.data, LD.upgrade(r.data)); st.dirty = true;
+          await LD.save(true); await waitSave();
+          LD.toast('تغییرات GitHub (گوشی یا دستگاه دیگر) ادغام شد');
+          LD.router.refresh();
+        }
+      }
+      if (st.dirty) throw new Error('فایل پوشه ذخیره نشد');
+      const text = await LD.idb.get('cache');
+      const rev = LD.crypto.header(text).rev;
+      if (!remote || LD.crypto.header(remote).rev !== rev) await LD.github.write(LD.DATA_FILE, text);
+      if ((await LD.idb.get('lastBackup:cloud')) !== LD.todayISO()) {
+        await LD.github.write('backups/life-data-' + LD.todayISO() + '.ldb', text);
+        await LD.idb.set('lastBackup:cloud', LD.todayISO());
+      }
+      await LD.idb.set('cloudRev', rev);
+      await LD.idb.set('cloudAt', LD.now());
+      lastError = '';
+      if (manual) LD.toast('پشتیبان ابری انجام شد');
+      return true;
+    } catch (e) {
+      lastError = e.message || String(e);
+      console.warn('cloud', e);
+      if (manual) LD.toast('پشتیبان ابری ناموفق: ' + lastError, 'warn');
+      return false;
+    } finally { busy = false; }
+  }
+
+  const schedule = LD.debounce(() => { if (auto()) run(false); }, 20000);
+  function start() {
+    if (LD.state.backend !== 'folder') return;
+    window.addEventListener('online', schedule);
+    setInterval(() => { if (auto() && document.visibilityState === 'visible') run(false); }, 600000);
+    setTimeout(() => { if (auto()) run(false); }, 3000);
+  }
+  const status = async () => ({ at: await LD.idb.get('cloudAt'), error: lastError });
+
+  return { run, schedule, start, status, ready, auto };
+})();
