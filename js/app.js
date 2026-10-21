@@ -8,22 +8,31 @@ LD.app = (() => {
     if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
   }
 
+  /* ---------- نصب روی گوشی (PWA) ---------- */
+  let installEvt = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; document.querySelectorAll('.install-btn').forEach((b) => (b.hidden = false)); });
+  window.addEventListener('appinstalled', () => { installEvt = null; document.querySelectorAll('.install-btn').forEach((b) => (b.hidden = true)); LD.toast('برنامه روی گوشی نصب شد'); });
+  const installBtn = () => h('button.btn.install-btn', { hidden: !installEvt, onclick: async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; } }, '📲 نصب روی گوشی');
+
   /* ---------- صفحه ورود ---------- */
   const gate = (content) => {
     document.getElementById('app').hidden = true;
     const g = document.getElementById('gate');
     g.hidden = false; g.innerHTML = '';
-    g.append(h('div.gate-box', h('div.brand.big', h('span.logo', '◐'), h('b', 'داشبورد زندگی')), content));
+    g.append(h('div.gate-box', h('div.brand.big', h('span.logo', '◐'), h('b', 'داشبورد زندگی')), content, installBtn()));
   };
 
   function welcome() {
     const fsOk = LD.backends.folder.supported();
+    const desktop = fsOk && location.protocol === 'file:';
+    const ghOpt = h('button.opt', { onclick: () => githubSetup() }, h('b', '🔄 GitHub — همگام بین کامپیوترها و گوشی' + (desktop ? '' : ' (پیشنهادی)')), h('span', 'فایل رمزگذاری‌شده در یک مخزن خصوصی GitHub نگه داشته می‌شود؛ روی کامپیوتر یک نسخه هم در پوشه OneDrive نوشته می‌شود.'));
+    const folderOpt = fsOk ? h('button.opt', { onclick: async () => { try { await LD.backends.folder.pick(); localStorage.setItem('ld.backend', 'folder'); unlock(true); } catch (e) { if (e.name !== 'AbortError') LD.toast(e.message, 'warn'); } } },
+      h('b', '📁 فایل روی این کامپیوتر' + (desktop ? ' (پیشنهادی)' : '')), h('span', 'پوشه LifeDashboard در OneDrive را انتخاب کنید؛ بدون اینترنت هم کار می‌کند. در تنظیمات می‌توانید پشتیبان ابری GitHub را هم روشن کنید.')) : null;
     gate(h('div',
       h('p', 'داده‌های شما در یک فایل رمزگذاری‌شده نگه داشته می‌شود. محل ذخیره را انتخاب کنید:'),
       h('div.gate-opts',
-        h('button.opt', { onclick: () => githubSetup() }, h('b', '🔄 GitHub — همگام بین کامپیوترها و گوشی (پیشنهادی)'), h('span', 'فایل رمزگذاری‌شده در یک مخزن خصوصی GitHub نگه داشته می‌شود؛ روی کامپیوتر یک نسخه هم در پوشه OneDrive نوشته می‌شود.')),
-        fsOk ? h('button.opt', { onclick: async () => { try { await LD.backends.folder.pick(); localStorage.setItem('ld.backend', 'folder'); unlock(true); } catch (e) { if (e.name !== 'AbortError') LD.toast(e.message, 'warn'); } } },
-          h('b', '📁 فقط پوشه روی این کامپیوتر'), h('span', 'بدون GitHub؛ پوشه OneDrive را انتخاب کنید تا بین کامپیوترها همگام شود (گوشی پشتیبانی نمی‌شود).')) : null,
+        desktop ? folderOpt : ghOpt,
+        desktop ? ghOpt : folderOpt,
         h('button.opt', { onclick: () => onedriveSetup() }, h('b', '☁️ OneDrive آنلاین'), h('span', 'فقط اگر Client ID برنامه Azure دارید.')),
         h('button.opt', { onclick: () => { localStorage.setItem('ld.backend', 'local'); unlock(true); } }, h('b', '📱 فقط همین دستگاه'), h('span', 'داده در حافظه مرورگر می‌ماند؛ با «دانلود پشتیبان» می‌توانید آن را منتقل کنید.')),
         h('button.opt', { onclick: () => openFile() }, h('b', '📄 باز کردن فایل life-data.ldb'), h('span', 'یک فایل پشتیبان یا فایل داده را از گوشی/کامپیوتر باز کنید.'))),
@@ -251,6 +260,7 @@ LD.app = (() => {
       if (min && Date.now() - lastActive > min * 60000) lock();
     }, 30000);
     setInterval(pull, 120000);
+    LD.cloud.start();
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { lastActive = Date.now(); pull(); } });
     const overdue = LD.fin.upcoming(3).filter((x) => x.overdue || x.date === LD.todayISO());
     if (overdue.length) LD.toast('📌 ' + LD.faNum(overdue.length) + ' سررسید امروز یا معوق دارید');
@@ -265,6 +275,6 @@ LD.app = (() => {
     unlock(false);
   }
 
-  return { boot, setTheme, lock, switchStorage, pull };
+  return { boot, setTheme, lock, switchStorage, pull, installBtn };
 })();
 document.addEventListener('DOMContentLoaded', LD.app.boot);
