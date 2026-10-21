@@ -228,6 +228,7 @@ LD.save = async (force = false) => {
       try { await be.backup(text); await LD.idb.set('lastBackup:' + st.backend, LD.todayISO()); } catch (e) { console.warn('backup', e); }
     }
     LD.setSaveStatus(st.backend === 'local' ? 'offline' : 'saved');
+    if (st.backend === 'folder') LD.cloud.schedule();
   } catch (e) {
     console.error(e);
     st.dirty = true;
@@ -239,7 +240,10 @@ LD.save = async (force = false) => {
 };
 
 /* بارگذاری مجدد از منبع (برای دیدن تغییرات دستگاه‌های دیگر) */
-LD.syncNow = async () => { LD.state.dirty = true; await LD.save(true); };
+LD.syncNow = async () => {
+  LD.state.dirty = true; await LD.save(true);
+  if (LD.state.backend === 'folder' && (await LD.cloud.ready())) await LD.cloud.run(true);
+};
 
 window.addEventListener('beforeunload', (e) => { if (LD.state.dirty) { LD.save(); e.preventDefault(); e.returnValue = ''; } });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && LD.state.dirty) LD.save(); });
