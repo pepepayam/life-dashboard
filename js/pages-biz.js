@@ -12,6 +12,8 @@
     defaults: () => ({ inDate: LD.todayISO(), basis: 'kg', billing: 'monthly', rate: LD.state.data.settings.csDefaultRate || '' }),
     fields: () => [
       { k: 'personId', label: 'مشتری (کد — نام)', type: 'ref', ref: 'people', filter: (p) => p.role === 'customer', optLabel: (p) => (p.code ? p.code + ' — ' : '') + p.name, required: true, half: true },
+      { k: 'code', label: 'شماره قرارداد', half: true, placeholder: 'خالی = کد مشتری' },
+      { k: 'partition', label: 'شماره پارتیشن', half: true },
       { k: 'product', label: 'محصول', required: true, half: true, datalist: () => PRODUCTS },
       { k: 'variety', label: 'رقم / درجه', half: true },
       { k: 'room', label: 'اتاق / سالن', type: rooms().length ? 'select' : 'text', options: () => rooms().map((r) => [r.name, r.name]), half: true },
@@ -89,7 +91,8 @@
       const p = F.pnl({ from: mf, to: mt, unitId: 'coldstore' });
       el.append(
         h('div.toolbar', h('div.seg', [['stock', 'موجودی فعلی'], ['all', 'همه محموله‌ها'], ['customers', 'مشتریان و مطالبات']].map(([k, l]) => h('button' + (tab === k ? '.on' : ''), { onclick: () => { sessionStorage.setItem('ld.cstab', k); LD.router.refresh(); } }, l))),
-          h('span.spacer'), h('button.btn', { onclick: () => roomSettings() }, 'اتاق‌ها و نرخ پیش‌فرض'),
+          h('span.spacer'), h('button.btn', { onclick: importReport }, ui.icon('list', 16), ' ورود آمار نرم‌افزار سردخانه'),
+          h('button.btn', { onclick: () => roomSettings() }, 'اتاق‌ها و نرخ پیش‌فرض'),
           h('button.btn', { onclick: () => LD.pages.people.edit({ role: 'customer' }) }, '+ مشتری'),
           h('button.btn.primary', { onclick: () => lotPage.edit() }, ui.icon('plus', 16), ' ورود محموله')),
         h('div.kpis.sm',
@@ -130,13 +133,67 @@
     { label: 'کد', get: (l) => F.lotCode(l) || '—' },
     { label: 'مشتری', get: (l) => F.personName(l.personId) },
     { label: 'محصول', get: (l) => l.product + (l.variety ? ' · ' + l.variety : '') },
-    { label: 'اتاق', get: (l) => l.room || '—' },
+    { label: 'اتاق / پارتیشن', get: (l) => [l.room, l.partition && 'پ ' + l.partition].filter(Boolean).join(' · ') || '—' },
     { label: 'مقدار', get: (l) => [l.cartons ? LD.fmt(l.cartons) + ' کارتن' : '', l.weightKg ? LD.fmt(l.weightKg) + ' kg' : ''].filter(Boolean).join(' / ') || '—' },
     { label: 'ورود', get: (l) => J.fmt(l.inDate) },
     { label: 'روز', num: true, get: (l) => LD.fmt(F.lotFee(l).days) },
     { label: 'کرایه', num: true, get: (l) => LD.money(F.lotFee(l).fee) },
     { label: '', get: (l) => l.outDate ? ui.badge('خارج شد ' + J.fmt(l.outDate)) : h('button.btn.sm', { onclick: (e) => { e.stopPropagation(); exitLot(l); } }, 'خروج') },
   ] });
+  /* ورود «گزارش خلاصه وضعیت قراردادها» نرم‌افزار سردخانه (خروجی Excel XML)؛ با هر بار ورود، محموله‌ها هم‌گام می‌شوند */
+  function parseReport(xml) {
+    const dm = LD.enNum(xml).match(/تاریخ تهیه\s*:\s*(\d{2,4}\/\d{1,2}\/\d{1,2})/);
+    const rows = [];
+    for (const r of xml.split(/<Row[\s>]/).slice(1)) {
+      const c = [...r.matchAll(/<Data[^>]*>([\s\S]*?)<\/Data>/g)].map((m) => m[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim());
+      // ستون‌ها: جعبه مانده، تناژ مانده، جعبه خروجی، تناژ خروجی، جعبه ورودی، تناژ ورودی، پارتیشن، مشتری، شماره قرارداد
+      if (c.length !== 9 || !/^\d+$/.test(LD.enNum(c[8])) || !c[7] || /^\d/.test(c[7])) continue;
+      const n = (i) => LD.parseNum(c[i]);
+      rows.push({ boxLeft: n(0), kgLeft: n(1), boxOut: n(2), kgOut: n(3), boxIn: n(4), kgIn: n(5), partition: LD.enNum(c[6]), name: LD.normalize(c[7]), contract: LD.enNum(c[8]) });
+    }
+    if (!rows.length) throw new Error('ردیف قراردادی در این فایل پیدا نشد؛ خروجی Excel (XML) «گزارش خلاصه وضعیت قراردادها» را انتخاب کنید');
+    return { date: (dm && J.parse(dm[1])) || LD.todayISO(), rows };
+  }
+  function applyReport(rep, dry) {
+    const st = { people: 0, add: 0, upd: 0, out: 0 }, made = {};
+    const key = (r) => r.contract + '/' + r.partition;
+    const byKey = new Map(LD.db.list('csLots').filter((l) => l.importKey).map((l) => [l.importKey, l]));
+    const person = (name) => LD.db.list('people').find((p) => LD.normalize(p.name) === name);
+    for (const r of rep.rows) {
+      let pid = (person(r.name) || {}).id || made[r.name];
+      if (!pid) { st.people++; pid = made[r.name] = dry ? 'new' : LD.db.put('people', { name: r.name, role: 'customer', code: r.contract }); }
+      const left = r.boxLeft > 0 || r.kgLeft > 0, ex = byKey.get(key(r));
+      const f = { personId: pid, code: r.contract, partition: r.partition, cartons: r.boxLeft, weightKg: r.kgLeft, inCartons: r.boxIn, inKg: r.kgIn, importKey: key(r) };
+      if (!ex) {
+        if (!left) continue;
+        st.add++;
+        if (!dry) LD.db.put('csLots', Object.assign({ product: 'سیب', inDate: rep.date, basis: 'kg', billing: 'monthly', rate: LD.state.data.settings.csDefaultRate || 0, note: 'از گزارش نرم‌افزار سردخانه' }, f));
+      } else {
+        const closing = !left && !ex.outDate;
+        if (closing) st.out++; else st.upd++;
+        if (!dry) LD.db.put('csLots', Object.assign({ id: ex.id }, f, closing ? { outDate: rep.date } : {}));
+      }
+    }
+    const seen = new Set(rep.rows.map(key));
+    for (const l of byKey.values()) if (!l.outDate && !seen.has(l.importKey)) { st.out++; if (!dry) LD.db.put('csLots', { id: l.id, outDate: rep.date }); }
+    return st;
+  }
+  const importReport = () => {
+    const i = h('input', { type: 'file', accept: '.xml,.xls', style: { display: 'none' } });
+    i.addEventListener('change', async () => {
+      const file = i.files[0]; i.remove(); if (!file) return;
+      let rep;
+      try { rep = parseReport(await file.text()); } catch (e) { LD.toast(e.message, 'warn'); return; }
+      const s = applyReport(rep, true);
+      const msg = `گزارش ${J.fmt(rep.date)} — ${LD.faNum(rep.rows.length)} ردیف، ${LD.fmt(LD.sum(rep.rows, (r) => r.kgLeft) / 1000, 1)} تن موجودی:\n`
+        + `${LD.faNum(s.people)} مشتری جدید، ${LD.faNum(s.add)} محموله جدید، ${LD.faNum(s.upd)} به‌روزرسانی، ${LD.faNum(s.out)} خروج کامل. وارد شود؟`;
+      if (!(await ui.confirm(msg, 'ورود آمار', false))) return;
+      applyReport(rep, false);
+      LD.toast('آمار سردخانه وارد شد'); LD.router.refresh();
+    });
+    document.body.append(i); i.click();
+  };
+
   const roomSettings = () => ui.form({
     title: 'اتاق‌های سردخانه', value: { coldRooms: rooms(), csDefaultRate: LD.state.data.settings.csDefaultRate },
     fields: [
