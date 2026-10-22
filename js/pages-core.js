@@ -352,6 +352,7 @@ LD.pages = LD.router.pages;
     fields: () => [
       { k: 'name', label: 'نام', required: true, half: true },
       { k: 'role', label: 'نقش', type: 'select', options: ROLES, half: true },
+      { k: 'code', label: 'کد مشتری سردخانه', half: true, voice: false, placeholder: 'کدی که روی همه بارهایش نوشته می‌شود' },
       { k: 'phone', label: 'تلفن همراه', inputType: 'tel', half: true, voice: false },
       { k: 'phone2', label: 'تلفن دیگر', inputType: 'tel', half: true, voice: false },
       { k: 'bankInfo', label: 'شماره کارت / شبا', voice: false },
@@ -363,6 +364,7 @@ LD.pages = LD.router.pages;
     extra: (v) => v.id && v.role === 'customer' ? h('button.btn.sm', { type: 'button', onclick: () => LD.pages.coldstore.statement(v.id) }, 'صورت‌حساب سردخانه') : null,
     cols: [
       { label: 'نام', get: (p) => p.name },
+      { label: 'کد', get: (p) => p.code || '—' },
       { label: 'نقش', get: (p) => ui.badge((ROLES.find((r) => r[0] === p.role) || ['', '—'])[1]) },
       { label: 'تلفن', get: (p) => p.phone ? h('a', { href: 'tel:' + p.phone, onclick: (e) => e.stopPropagation() }, LD.faNum(p.phone)) : '—' },
       { label: 'یادداشت', get: (p) => (p.note || '').slice(0, 50) || '—' },
