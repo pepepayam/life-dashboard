@@ -104,7 +104,7 @@ LD.ui = (() => {
     if (f.ref) {
       let rows = LD.db.list(f.ref);
       if (f.filter) rows = rows.filter((r) => f.filter(r, val));
-      opts = rows.map((r) => [r.id, r.name || r.title]);
+      opts = rows.map((r) => [r.id, f.optLabel ? f.optLabel(r) : r.name || r.title]);
     }
     return opts || [];
   }
