@@ -12,6 +12,7 @@
     defaults: () => ({ inDate: LD.todayISO(), basis: 'kg', billing: 'monthly', rate: LD.state.data.settings.csDefaultRate || '' }),
     fields: () => [
       { k: 'personId', label: 'مشتری (باغدار)', type: 'ref', ref: 'people', filter: (p) => p.role === 'customer', required: true, half: true },
+      { k: 'code', label: 'کد نگهداری', half: true, placeholder: 'کدی که روی بار/قبض نوشته می‌شود' },
       { k: 'product', label: 'محصول', required: true, half: true, datalist: () => PRODUCTS },
       { k: 'variety', label: 'رقم / درجه', half: true },
       { k: 'room', label: 'اتاق / سالن', type: rooms().length ? 'select' : 'text', options: () => rooms().map((r) => [r.name, r.name]), half: true },
@@ -33,7 +34,7 @@
   });
   const exitLot = (lot) => {
     ui.form({
-      title: 'خروج محموله — ' + lot.product + ' (' + F.personName(lot.personId) + ')',
+      title: 'خروج محموله — ' + (lot.code ? 'کد ' + lot.code + ' — ' : '') + lot.product + ' (' + F.personName(lot.personId) + ')',
       fields: [
         { k: 'outDate', label: 'تاریخ خروج', type: 'date', required: true, def: LD.todayISO, half: true },
         { k: 'cartons', label: 'تعداد کارتن خارج‌شده', type: 'number', half: true },
@@ -65,6 +66,7 @@
         h('h2.print-only', 'صورت‌حساب سردخانه — ' + p.name),
         h('p.muted', 'تاریخ گزارش: ' + J.fmt(LD.todayISO(), true) + (p.phone ? ' — تلفن: ' + LD.faNum(p.phone) : '')),
         ui.table({ rows: s.lots.sort((a, b) => a.inDate.localeCompare(b.inDate)), cols: [
+          { label: 'کد', get: (l) => l.code || '—' },
           { label: 'محصول', get: (l) => l.product + (l.variety ? ' (' + l.variety + ')' : '') },
           { label: 'ورود', get: (l) => J.fmt(l.inDate) }, { label: 'خروج', get: (l) => l.outDate ? J.fmt(l.outDate) : 'در انبار' },
           { label: 'مقدار', get: (l) => [l.cartons ? LD.fmt(l.cartons) + ' کارتن' : '', l.weightKg ? LD.fmt(l.weightKg) + ' کیلو' : ''].filter(Boolean).join(' / ') },
@@ -126,6 +128,7 @@
     },
   };
   const lotTable = (rows) => ui.table({ rows, onRow: (l) => lotPage.edit(l), empty: 'محموله‌ای نیست', cols: [
+    { label: 'کد', get: (l) => l.code || '—' },
     { label: 'مشتری', get: (l) => F.personName(l.personId) },
     { label: 'محصول', get: (l) => l.product + (l.variety ? ' · ' + l.variety : '') },
     { label: 'اتاق', get: (l) => l.room || '—' },
