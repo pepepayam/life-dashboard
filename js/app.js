@@ -205,6 +205,7 @@ LD.app = (() => {
     const P = LD.pages;
     const items = [
       ['mic', 'ثبت صوتی', () => LD.voice.quickVoice()],
+      ['list', 'پیامک بانک', () => LD.sms.dialog()],
       ['money', 'هزینه', () => P.transactions.edit({ type: 'expense' })],
       ['money', 'درآمد', () => P.transactions.edit({ type: 'income' })],
       ['cup', 'فروش روزانه کافه', () => P.cafe.editSale()],
@@ -262,12 +263,20 @@ LD.app = (() => {
     setInterval(pull, 120000);
     LD.cloud.start();
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { lastActive = Date.now(); pull(); } });
+    const shared = sessionStorage.getItem('ld.shared');
+    if (shared) { sessionStorage.removeItem('ld.shared'); setTimeout(() => LD.sms.fromText(shared), 300); }
     const overdue = LD.fin.upcoming(3).filter((x) => x.overdue || x.date === LD.todayISO());
     if (overdue.length) LD.toast('📌 ' + LD.faNum(overdue.length) + ' سررسید امروز یا معوق دارید');
   }
 
   async function boot() {
     setTheme(localStorage.getItem('ld.theme') || 'auto');
+    /* پیامکی که از برنامه پیامک «اشتراک‌گذاری» شده (share_target در manifest) */
+    const q = new URLSearchParams(location.search);
+    if (q.has('text') || q.has('title')) {
+      sessionStorage.setItem('ld.shared', [q.get('title'), q.get('text')].filter(Boolean).join('\n'));
+      history.replaceState(null, '', location.pathname + location.hash);
+    }
     if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
     try { if (await LD.onedrive.handleRedirect()) localStorage.setItem('ld.backend', 'onedrive'); }
     catch (e) { LD.toast('ورود به OneDrive ناموفق: ' + e.message, 'warn'); }
