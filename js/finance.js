@@ -71,7 +71,7 @@ LD.fin = {
   personName(id) { const p = LD.db.get('people', id); return p ? p.name : '—'; },
   /* کد ثابت مشتری سردخانه (روی همه بارهایش) */
   personCode(id) { const p = LD.db.get('people', id); return (p && p.code) || ''; },
-  lotCode(l) { return this.personCode(l.personId) || l.code || ''; },
+  lotCode(l) { return l.code || this.personCode(l.personId) || ''; },
   accountName(id) { const a = LD.db.get('accounts', id); return a ? a.name : '—'; },
   projectName(id) { const p = LD.db.get('projects', id); return p ? p.name : '—'; },
 
