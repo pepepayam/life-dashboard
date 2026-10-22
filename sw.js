@@ -1,6 +1,6 @@
 /* Service Worker: نسخه آفلاین برنامه روی گوشی (فقط کد برنامه کش می‌شود، نه داده‌ها) */
-const CACHE = 'lifedashboard-202610220148';
-const FILES = ['./', './index.html', './styles.css', './manifest.webmanifest', './icon.svg', './apple-touch-icon.png', './icon-192.png', './icon-512.png', './icon-maskable.png', './js/app.js', './js/charts.js', './js/crypto.js', './js/finance.js', './js/github.js', './js/jalali.js', './js/onedrive.js', './js/pages-biz.js', './js/pages-core.js', './js/reports.js', './js/settings.js', './js/store.js', './js/ui.js', './js/util.js', './js/voice.js'];
+const CACHE = 'lifedashboard-202610220210';
+const FILES = ['./', './index.html', './styles.css', './manifest.webmanifest', './icon.svg', './apple-touch-icon.png', './icon-192.png', './icon-512.png', './icon-maskable.png', './js/app.js', './js/charts.js', './js/crypto.js', './js/finance.js', './js/github.js', './js/jalali.js', './js/onedrive.js', './js/pages-biz.js', './js/pages-core.js', './js/reports.js', './js/settings.js', './js/sms.js', './js/store.js', './js/ui.js', './js/util.js', './js/voice.js'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {
